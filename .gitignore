@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+reports/
+.env
+_gen_project_report.py
