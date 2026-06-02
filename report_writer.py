@@ -16,6 +16,7 @@ from reportlab.platypus import (
 )
 
 import re
+import markdown
 
 # ---------------------------------------------------------------------------
 # Font setup (built-in CID fonts — no external font files needed)
@@ -181,7 +182,36 @@ def _md_to_story(md_text: str) -> list:
     return story
 
 
-def write_report(md_content: str) -> tuple[str, str]:
+def _write_html(md_content: str, html_path: Path) -> None:
+    html_body = markdown.markdown(
+        md_content,
+        extensions=["tables", "fenced_code"]
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Investigation Report</title>
+<style>
+body {{ font-family: "Segoe UI", Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #111; background: #fff; }}
+pre {{ background: #f7f7f7; padding: 1rem; overflow-x: auto; border-radius: 4px; }}
+code {{ background: #f5f5f5; padding: .15rem .3rem; border-radius: .3rem; font-family: Consolas, Menlo, Monaco, monospace; }}
+table {{ border-collapse: collapse; width: 100%; margin-bottom: 1rem; }}
+th, td {{ border: 1px solid #ccc; padding: .5rem .75rem; text-align: left; }}
+th {{ background: #f0f0f0; }}
+blockquote {{ border-left: 4px solid #ccc; margin: 1rem 0; padding-left: 1rem; color: #555; background: #f9f9f9; }}
+a {{ color: #0366d6; text-decoration: none; }}
+a:hover {{ text-decoration: underline; }}
+</style>
+</head>
+<body>
+{html_body}
+</body>
+</html>"""
+    html_path.write_text(html, encoding="utf-8")
+
+
+def write_report(md_content: str) -> tuple[str, str, str]:
     today = date.today().strftime("%Y%m%d")
     reports_dir = Path(__file__).parent / "reports"
     reports_dir.mkdir(exist_ok=True)
@@ -201,4 +231,7 @@ def write_report(md_content: str) -> tuple[str, str]:
     )
     doc.build(story)
 
-    return str(md_path), str(pdf_path)
+    html_path = reports_dir / f"report_{today}.html"
+    _write_html(md_content, html_path)
+
+    return str(md_path), str(pdf_path), str(html_path)

@@ -91,6 +91,18 @@ TOOLS = [
                     "enum": ["open", "closed", "all"],
                     "description": "取得する Issue の状態。デフォルト all",
                     "default": "all"
+                },
+                "repo": {
+                    "type": "string",
+                    "description": "GitHub リポジトリ名（owner/repo）。省略時はデフォルトのリポジトリを使用します。"
+                },
+                "repo_name": {
+                    "type": "string",
+                    "description": "GitHub リポジトリ名（owner/repo）の別名。"
+                },
+                "owner": {
+                    "type": "string",
+                    "description": "GitHub リポジトリの所有者。repo と組み合わせて owner/repo を構成します。"
                 }
             }
         }
@@ -104,6 +116,18 @@ TOOLS = [
                 "issue_number": {
                     "type": "integer",
                     "description": "取得する Issue 番号"
+                },
+                "repo": {
+                    "type": "string",
+                    "description": "GitHub リポジトリ名（owner/repo）。省略時はデフォルトのリポジトリを使用します。"
+                },
+                "repo_name": {
+                    "type": "string",
+                    "description": "GitHub リポジトリ名（owner/repo）の別名。"
+                },
+                "owner": {
+                    "type": "string",
+                    "description": "GitHub リポジトリの所有者。repo と組み合わせて owner/repo を構成します。"
                 }
             },
             "required": ["issue_number"]
@@ -111,7 +135,7 @@ TOOLS = [
     },
     {
         "name": "write_report",
-        "description": "調査結果を Markdown レポートとして保存し、同時に PDF も生成する。最後に一度だけ呼ぶこと。",
+        "description": "調査結果を Markdown レポートとして保存し、同時に PDF と HTML を生成する。最後に一度だけ呼ぶこと。",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -190,7 +214,14 @@ def search_code(root: str, pattern: str, file_glob: str = None) -> str:
     return "\n".join(results[:200])  # cap at 200 matches
 
 
-def get_github_issues(state: str = "all") -> str:
+def get_github_issues(state: str = "all", repo: str = None, owner: str = None, repo_name: str = None) -> str:
+    if repo_name:
+        repo = repo_name
+    if owner and repo:
+        repo = f"{owner}/{repo}"
+    if not repo:
+        repo = GITHUB_REPO
+
     token = os.environ.get("GITHUB_TOKEN", "")
     headers = {"Accept": "application/vnd.github+json"}
     if token:
@@ -199,7 +230,7 @@ def get_github_issues(state: str = "all") -> str:
     issues = []
     page = 1
     while True:
-        url = f"{GITHUB_API}/repos/{GITHUB_REPO}/issues"
+        url = f"{GITHUB_API}/repos/{repo}/issues"
         resp = requests.get(url, headers=headers,
                             params={"state": state, "per_page": 100, "page": page},
                             timeout=30)
@@ -225,14 +256,21 @@ def get_github_issues(state: str = "all") -> str:
     return "\n".join(lines)
 
 
-def get_github_issue(issue_number: int) -> str:
+def get_github_issue(issue_number: int, repo: str = None, owner: str = None, repo_name: str = None) -> str:
+    if repo_name:
+        repo = repo_name
+    if owner and repo:
+        repo = f"{owner}/{repo}"
+    if not repo:
+        repo = GITHUB_REPO
+
     token = os.environ.get("GITHUB_TOKEN", "")
     headers = {"Accept": "application/vnd.github+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     # Issue body
-    url = f"{GITHUB_API}/repos/{GITHUB_REPO}/issues/{issue_number}"
+    url = f"{GITHUB_API}/repos/{repo}/issues/{issue_number}"
     resp = requests.get(url, headers=headers, timeout=30)
     if resp.status_code != 200:
         return f"ERROR: {resp.status_code}: {resp.text[:300]}"
@@ -259,8 +297,13 @@ def get_github_issue(issue_number: int) -> str:
 
 def write_report(content: str) -> str:
     from report_writer import write_report as _write
-    md_path, pdf_path = _write(content)
-    return f"レポートを保存しました:\n  Markdown: {md_path}\n  PDF:      {pdf_path}"
+    md_path, pdf_path, html_path = _write(content)
+    return (
+        f"レポートを保存しました:\n"
+        f"  Markdown: {md_path}\n"
+        f"  PDF:      {pdf_path}\n"
+        f"  HTML:     {html_path}"
+    )
 
 
 # ---------------------------------------------------------------------------
